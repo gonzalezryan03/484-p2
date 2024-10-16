@@ -130,20 +130,22 @@ public final class StudentFakebookOracle extends FakebookOracle {
             ResultSet rs = null;
 
             // max len of first names
-            String sqlMaxLen = "SELECT MAX(LENGTH(first_name)) FROM" + UsersTable;
+            String sqlMaxLen = "SELECT MAX(LENGTH(first_name)) FROM " + UsersTable;
             rs = stmt.executeQuery(sqlMaxLen);
             int maxLen = 0;
             if (rs.next()){
                 maxLen = rs.getInt(1);
             }
+            rs.close();
 
             // find first names w max len
-            String sqlMaxNames = "SELECT DISTINCT first_name FROM" + UsersTable + "WHERE LENGTH(first_name) = " + maxLen + " ORDER BY first_name";
+            String sqlMaxNames = "SELECT DISTINCT first_name FROM " + UsersTable + " WHERE LENGTH(first_name) = " + maxLen + " ORDER BY first_name";
             rs = stmt.executeQuery(sqlMaxNames);
             while (rs.next()){
                 String name = rs.getString(1);
                 info.addLongName(name);
             }
+            rs.close();
 
             // min len of first names
             String sqlMinLen = "SELECT MIN(LENGTH(first_name)) FROM " + UsersTable;
@@ -152,9 +154,11 @@ public final class StudentFakebookOracle extends FakebookOracle {
             if (rs.next()){
                 minLen = rs.getInt(1);
             }
+            rs.close();
 
             // find first names w min len
-            String sqlMinNames = "SELECT DISTINCT first_name FROM" + UsersTable + "WHERE LENGTH(first_name) = " + minLen + " ORDER BY first_name";
+            String sqlMinNames = "SELECT DISTINCT first_name FROM " + UsersTable + " WHERE LENGTH(first_name) = " + minLen + " ORDER BY first_name";
+            rs = stmt.executeQuery(sqlMinNames);
             while (rs.next()){
                 String name = rs.getString(1);
                 info.addShortName(name);
@@ -162,16 +166,17 @@ public final class StudentFakebookOracle extends FakebookOracle {
             rs.close();
 
             // Max Count of individual first names
-            String sqlMaxCount = "SELECT MAX(cnt) FROM (" +"SELECT first_name, COUNT(*) AS cnt FROM " + UsersTable + "GROUP BY first_name)";
+            String sqlMaxCount = "SELECT MAX(cnt) FROM (" + "SELECT first_name, COUNT(*) AS cnt FROM " + UsersTable + " GROUP BY first_name)";
             rs = stmt.executeQuery(sqlMaxCount);
             int maxCount = 0;
             if (rs.next()) {
                 maxCount = rs.getInt(1);
             }
+            rs.close();
             info.setCommonNameCount(maxCount);
 
             // Find most common first names
-            String sqlMostCommonNames = "SELECT first_name FROM (" + "SELECT first_name, COUNT(*) AS cnt FROM " + UsersTable + "GROUP BY first_name) WHERE cnt = " + maxCount + "ORDER BY first_name";
+            String sqlMostCommonNames = "SELECT first_name FROM (" + "SELECT first_name, COUNT(*) AS cnt FROM " + UsersTable + " GROUP BY first_name) WHERE cnt = " + maxCount + " ORDER BY first_name";
             rs = stmt.executeQuery(sqlMostCommonNames);
             while (rs.next()){
                 String name = rs.getString(1);
