@@ -212,6 +212,22 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 results.add(u1);
                 results.add(u2);
             */
+
+           String sql = "SELECT u.user_id, u.first_name, u.last_name " +
+                     "FROM " + UsersTable + " u " +
+                     "WHERE NOT EXISTS ( " +
+                     "SELECT 1 FROM " + FriendsTable + " f " +
+                     "WHERE f.user1_id = u.user_id OR f.user2_id = u.user_id ) " +
+                     "ORDER BY u.user_id";
+            ResultSet rs = stmt.executeQuery(sql);
+            while (rs.next()){
+                long userId = rs.getLong("user_id");
+                String firstName = rs.getString("first_name");
+                String lastName = rs.getString("last_name");
+                UserInfo user = new UserInfo(userId, firstName, lastName);
+                results.add(user);
+            }
+            rs.close();
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -226,17 +242,35 @@ public final class StudentFakebookOracle extends FakebookOracle {
     //            in their hometown (i.e. their current city and their hometown are different)
     public FakebookArrayList<UserInfo> liveAwayFromHome() throws SQLException {
         FakebookArrayList<UserInfo> results = new FakebookArrayList<UserInfo>(", ");
-
-        try (Statement stmt = oracle.createStatement(FakebookOracleConstants.AllScroll,
-                FakebookOracleConstants.ReadOnly)) {
-            /*
+        /*
                 EXAMPLE DATA STRUCTURE USAGE
                 ============================================
                 UserInfo u1 = new UserInfo(9, "Meryl", "Streep");
                 UserInfo u2 = new UserInfo(104, "Tom", "Hanks");
                 results.add(u1);
                 results.add(u2);
-            */
+        */
+
+        try (Statement stmt = oracle.createStatement(FakebookOracleConstants.AllScroll,
+                FakebookOracleConstants.ReadOnly)) {
+            String sql = "SELECT U.user_id, U.first_name, U.last_name " +
+                     "FROM " + UsersTable + " U " +
+                     "JOIN " + CurrentCitiesTable + " C ON U.user_id = C.user_id " +
+                     "JOIN " + HometownCitiesTable + " H ON U.user_id = H.user_id " +
+                     "WHERE C.current_city_id <> H.hometown_city_id " +
+                     "ORDER BY U.user_id";
+            
+            ResultSet rs = stmt.executeQuery(sql);
+
+            while (rs.next()) {
+                long userId = rs.getLong("user_id");
+                String firstName = rs.getString("first_name");
+                String lastName = rs.getString("last_name");
+                UserInfo user = new UserInfo(userId, firstName, lastName);
+                results.add(user);
+            }
+            rs.close();
+
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
