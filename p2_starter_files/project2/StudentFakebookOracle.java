@@ -367,6 +367,162 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 up.addSharedFriend(u3);
                 results.add(up);
             */
+
+         //bidirectional friendship view
+        String allFriendsQuery = "SELECT user1_id AS user_id1, user2_id AS user_id2 FROM " + FriendsTable +
+                                 " UNION ALL SELECT user2_id AS user_id1, user1_id AS user_id2 FROM " + FriendsTable;
+
+        //pairs of users who share mutual friends and are not friends themselves
+        String mutualFriendsQuery =
+                "SELECT mf.user_id1, mf.user_id2, COUNT(*) AS mutual_friends_count FROM (" +
+                    "SELECT af1.user_id1 AS user_id1, af2.user_id1 AS user_id2 " +
+                    "FROM (" + allFriendsQuery + ") af1 " +
+                    "JOIN (" + allFriendsQuery + ") af2 ON af1.user_id2 = af2.user_id2 " +
+                    "WHERE af1.user_id1 < af2.user_id1 " +
+                ") mf " +
+                "LEFT JOIN " + FriendsTable + " f ON f.user1_id = mf.user_id1 AND f.user2_id = mf.user_id2 " +
+                "WHERE f.user1_id IS NULL " +
+                "GROUP BY mf.user_id1, mf.user_id2 " +
+                "ORDER BY mutual_friends_count DESC, mf.user_id1 ASC, mf.user_id2 ASC";
+
+        // Limit to top num pairs
+        String topPairsQuery = "SELECT * FROM (" + mutualFriendsQuery + ") WHERE ROWNUM <= " + num;
+
+        ResultSet rsTopPairs = stmt.executeQuery(topPairsQuery);
+
+        int numPairs = 0;
+        long[] user1Ids = new long[num];
+        long[] user2Ids = new long[num];
+
+        FakebookArrayList<Long> userIds = new FakebookArrayList<Long>(", ");
+
+        while (rsTopPairs.next() && numPairs < num) {
+            long userId1 = rsTopPairs.getLong("user_id1");
+            long userId2 = rsTopPairs.getLong("user_id2");
+            int mutualFriendsCount = rsTopPairs.getInt("mutual_friends_count");
+
+            user1Ids[numPairs] = userId1;
+            user2Ids[numPairs] = userId2;
+            numPairs++;
+
+            if (!userIds.contains(userId1)) {
+                userIds.add(userId1);
+            }
+            if (!userIds.contains(userId2)) {
+                userIds.add(userId2);
+            }
+        }
+        rsTopPairs.close();
+
+        int numUsers = userIds.size();
+        long[] userIdsArray = new long[numUsers];
+        String[] firstNames = new String[numUsers];
+        String[] lastNames = new String[numUsers];
+        for (int i = 0; i < numUsers; i++) {
+            userIdsArray[i] = userIds.get(i);
+        }
+
+        if (numUsers > 0) {
+            //comma-separated list of user IDs
+            StringBuilder userIdsStrBuilder = new StringBuilder();
+            for (int i = 0; i < numUsers; i++) {
+                if (i > 0) {
+                    userIdsStrBuilder.append(",");
+                }
+                userIdsStrBuilder.append(userIdsArray[i]);
+            }
+            String userIdsStr = userIdsStrBuilder.toString();
+
+            String getUsersQuery = "SELECT user_id, first_name, last_name FROM " + UsersTable +
+                                   " WHERE user_id IN (" + userIdsStr + ")";
+
+            ResultSet rsUsers = stmt.executeQuery(getUsersQuery);
+
+            while (rsUsers.next()) {
+                long userId = rsUsers.getLong("user_id");
+                String firstName = rsUsers.getString("first_name");
+                String lastName = rsUsers.getString("last_name");
+
+                for (int i = 0; i < numUsers; i++) {
+                    if (userIdsArray[i] == userId) {
+                        firstNames[i] = firstName;
+                        lastNames[i] = lastName;
+                        break;
+                    }
+                }
+            }
+            rsUsers.close();
+        }
+
+        // Now, create UsersPair objects with full UserInfo
+        for (int i = 0; i < numPairs; i++) {
+            long userId1 = user1Ids[i];
+            long userId2 = user2Ids[i];
+
+            // Find user1 info
+            UserInfo user1 = null;
+            UserInfo user2 = null;
+            for (int j = 0; j < numUsers; j++) {
+                if (userIdsArray[j] == userId1) {
+                    user1 = new UserInfo(userId1, firstNames[j], lastNames[j]);
+                }
+                if (userIdsArray[j] == userId2) {
+                    user2 = new UserInfo(userId2, firstNames[j], lastNames[j]);
+                }
+                if (user1 != null && user2 != null) {
+                    break;
+                }
+            }
+
+            UsersPair pair = new UsersPair(user1, user2);
+
+            // Query to get mutual friend IDs
+            String mutualFriendIdsQuery =
+                    "SELECT DISTINCT af1.user_id2 AS mutual_friend_id " +
+                    "FROM (" + allFriendsQuery + ") af1 " +
+                    "JOIN (" + allFriendsQuery + ") af2 ON af1.user_id2 = af2.user_id2 " +
+                    "WHERE af1.user_id1 = " + userId1 +
+                    " AND af2.user_id1 = " + userId2;
+
+            ResultSet rsMutualFriends = stmt.executeQuery(mutualFriendIdsQuery);
+
+            // Collect mutual friend IDs
+            FakebookArrayList<Long> mutualFriendIds = new FakebookArrayList<Long>(", ");
+            while (rsMutualFriends.next()) {
+                long mutualFriendId = rsMutualFriends.getLong("mutual_friend_id");
+                if (!mutualFriendIds.contains(mutualFriendId)) {
+                    mutualFriendIds.add(mutualFriendId);
+                }
+            }
+            rsMutualFriends.close();
+
+            if (!mutualFriendIds.isEmpty()) {
+                //comma-separated list of mutual friend IDs
+                StringBuilder mutualFriendIdsStrBuilder = new StringBuilder();
+                for (int j = 0; j < mutualFriendIds.size(); j++) {
+                    if (j > 0) {
+                        mutualFriendIdsStrBuilder.append(",");
+                    }
+                    mutualFriendIdsStrBuilder.append(mutualFriendIds.get(j));
+                }
+                String mutualFriendIdsStr = mutualFriendIdsStrBuilder.toString();
+
+                String getMutualFriendsQuery = "SELECT user_id, first_name, last_name FROM " + UsersTable +
+                                               " WHERE user_id IN (" + mutualFriendIdsStr + ") ORDER BY user_id";
+
+                ResultSet rsMutualFriendDetails = stmt.executeQuery(getMutualFriendsQuery);
+                while (rsMutualFriendDetails.next()) {
+                    long mfId = rsMutualFriendDetails.getLong("user_id");
+                    String firstName = rsMutualFriendDetails.getString("first_name");
+                    String lastName = rsMutualFriendDetails.getString("last_name");
+                    UserInfo mutualFriend = new UserInfo(mfId, firstName, lastName);
+                    pair.addSharedFriend(mutualFriend);
+                }
+                rsMutualFriendDetails.close();
+            }
+
+            results.add(pair);
+        }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
