@@ -606,7 +606,57 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 UserInfo young = new UserInfo(80000000, "Neil", "deGrasse Tyson");
                 return new AgeInfo(old, young);
             */
-            return new AgeInfo(new UserInfo(-1, "UNWRITTEN", "UNWRITTEN"), new UserInfo(-1, "UNWRITTEN", "UNWRITTEN")); // placeholder for compilation
+            UserInfo oldestFriend = null;
+            UserInfo youngestFriend = null;
+            ResultSet rs = null;
+
+            // query for oldest friend info
+            String sqlOldestFriend = 
+                "SELECT U.user_id, U.first_name, U.last_name " +
+                "FROM " + UsersTable + " U " +
+                "JOIN (" +
+                    "SELECT CASE WHEN F.user1_id = " + userID + " THEN F.user2_id ELSE F.user1_id END AS friend_id " +
+                    "FROM " + FriendsTable + " F " +
+                    "WHERE F.user1_id = " + userID + " OR F.user2_id = " + userID + 
+                ") F ON U.user_id = F.friend_id " +
+                "WHERE U.year_of_birth IS NOT NULL AND U.month_of_birth IS NOT NULL AND U.day_of_birth IS NOT NULL " +
+                "ORDER BY U.year_of_birth ASC, U.month_of_birth ASC, U.day_of_birth ASC, U.user_id DESC " +
+                "FETCH FIRST 1 ROWS ONLY";
+
+            rs = stmt.executeQuery(sqlOldestFriend);
+            if (rs.next()){
+                long friendId = rs.getLong("user_id");
+                String firstName = rs.getString("first_name");
+                String lastName = rs.getString("last_name");
+                oldestFriend = new UserInfo(friendId, firstName, lastName);
+            }
+            rs.close();
+            
+            // query for youngest friend info
+             String sqlYoungestFriend =
+                "SELECT U.user_id, U.first_name, U.last_name " +
+                "FROM " + UsersTable + " U " +
+                "JOIN (" +
+                    "SELECT CASE WHEN F.user1_id = " + userID + " THEN F.user2_id ELSE F.user1_id END AS friend_id " +
+                    "FROM " + FriendsTable + " F " +
+                    "WHERE F.user1_id = " + userID + " OR F.user2_id = " + userID +
+                ") F ON U.user_id = F.friend_id " +
+                "WHERE U.year_of_birth IS NOT NULL AND U.month_of_birth IS NOT NULL AND U.day_of_birth IS NOT NULL " +
+                "ORDER BY U.year_of_birth DESC, U.month_of_birth DESC, U.day_of_birth DESC, U.user_id DESC " +
+                "FETCH FIRST 1 ROWS ONLY";
+
+        rs = stmt.executeQuery(sqlYoungestFriend);
+        if (rs.next()) {
+            long friendId = rs.getLong("user_id");
+            String firstName = rs.getString("first_name");
+            String lastName = rs.getString("last_name");
+            youngestFriend = new UserInfo(friendId, firstName, lastName);
+        }
+        rs.close();
+
+        AgeInfo ageInfo = new AgeInfo(oldestFriend, youngestFriend);
+        return ageInfo;
+
         } catch (SQLException e) {
             System.err.println(e.getMessage());
             return new AgeInfo(new UserInfo(-1, "ERROR", "ERROR"), new UserInfo(-1, "ERROR", "ERROR"));
